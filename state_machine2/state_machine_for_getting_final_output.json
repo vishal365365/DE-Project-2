@@ -1,0 +1,80 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "fetching-result",
+  "States": {
+    "fetching-result": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-south-1:730335234333:function:fetchingMovieResult:$LATEST",
+        "Payload.$": "$"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "showing-result"
+    },
+    "showing-result": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:ap-south-1:730335234333:function:final-output:$LATEST"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Choice"
+    },
+    "Choice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.status",
+          "StringEquals": "failed",
+          "Next": "Fail"
+        },
+        {
+          "Variable": "$.status",
+          "StringEquals": "success",
+          "Next": "Success"
+        }
+      ],
+      "Default": "Wait"
+    },
+    "Fail": {
+      "Type": "Fail"
+    },
+    "Wait": {
+      "Type": "Wait",
+      "Seconds": 300,
+      "Next": "showing-result"
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  },
+  "TimeoutSeconds": 1200
+}

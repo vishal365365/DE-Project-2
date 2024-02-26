@@ -1,0 +1,148 @@
+{
+    "Comment": "A description of my state machine",
+    "StartAt": "Lambda Invoke",
+    "States": {
+      "Lambda Invoke": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "FunctionName": "arn:aws:lambda:ap-south-1:730335234333:function:movie-etl-jobs:$LATEST",
+          "Payload.$": "$"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException",
+              "Lambda.TooManyRequestsException"
+            ],
+            "IntervalSeconds": 1,
+            "MaxAttempts": 3,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "Choice"
+      },
+      "Choice": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.status",
+            "StringEquals": "ConcurrentRunsExceededException",
+            "Next": "Wait"
+          }
+        ],
+        "Default": "Lambda Invoke (1)"
+      },
+      "Wait": {
+        "Type": "Wait",
+        "Seconds": 120,
+        "Next": "Lambda Invoke"
+      },
+      "Lambda Invoke (1)": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "arn:aws:lambda:ap-south-1:730335234333:function:glue_job_status:$LATEST"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException",
+              "Lambda.TooManyRequestsException"
+            ],
+            "IntervalSeconds": 1,
+            "MaxAttempts": 3,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "Choice (1)"
+      },
+      "Choice (1)": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.job_status",
+            "StringEquals": "SUCCEEDED",
+            "Next": "Lambda Invoke (2)"
+          },
+          {
+            "Or": [
+              {
+                "Variable": "$.job_status",
+                "StringEquals": "Failed"
+              }
+            ],
+            "Next": "Fail"
+          }
+        ],
+        "Default": "Wait (1)"
+      },
+      "Lambda Invoke (2)": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "arn:aws:lambda:ap-south-1:730335234333:function:fetching-movie-result:$LATEST"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException",
+              "Lambda.TooManyRequestsException"
+            ],
+            "IntervalSeconds": 1,
+            "MaxAttempts": 3,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "Choice (2)"
+      },
+      "Choice (2)": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Or": [
+              {
+                "Variable": "$.status",
+                "StringEquals": "failed"
+              }
+            ],
+            "Next": "Fail"
+          },
+          {
+            "Variable": "$.status",
+            "StringEquals": "success",
+            "Next": "Success"
+          }
+        ],
+        "Default": "Wait (2)"
+      },
+      "Wait (2)": {
+        "Type": "Wait",
+        "Seconds": 20,
+        "Next": "Lambda Invoke (2)"
+      },
+      "Wait (1)": {
+        "Type": "Wait",
+        "Seconds": 100,
+        "Next": "Lambda Invoke (1)"
+      },
+      "Fail": {
+        "Type": "Fail"
+      },
+      "Success": {
+        "Type": "Succeed"
+      }
+    },
+    "TimeoutSeconds": 1000
+  }
